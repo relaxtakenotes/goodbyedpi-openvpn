@@ -23,7 +23,7 @@
 // My mingw installation does not load inet_pton definition for some reason
 WINSOCK_API_LINKAGE INT WSAAPI inet_pton(INT Family, LPCSTR pStringBuf, PVOID pAddr);
 
-#define GOODBYEDPI_VERSION "v0.2.69"
+#define GOODBYEDPI_VERSION "v0.2.2"
 
 #define die() do { sleep(20); exit(EXIT_FAILURE); } while (0)
 
@@ -171,7 +171,6 @@ static struct option long_options[] = {
     {"native-frag", no_argument,       0,  '*' },
     {"reverse-frag",no_argument,       0,  '(' },
     {"max-payload", optional_argument, 0,  '|' },
-    {"openvpn",     no_argument,       0,  '#' },
     {0,             0,                 0,   0  }
 };
 
@@ -434,16 +433,6 @@ static int extract_sni(const char *pktdata, unsigned int pktlen,
     return FALSE;
 }
 
-static inline int is_openvpn_handshake(const char *pktdata, unsigned int pktlen) {
-    /*
-     * 0x38 is P_CONTROL_HARD_RESET_CLIENT_V2 + peer_id(0),
-     * 0x50 is P_CONTROL_HARD_RESET_CLIENT_V3 + peer_id(0)
-     */
-    return pktlen >= 16
-           && ntohs(((uint16_t*)pktdata)[0]) == pktlen - 2
-           && (pktdata[2] == '\x38' || pktdata[2] == '\x50');
-}
-
 static inline void change_window_size(const PWINDIVERT_TCPHDR ppTcpHdr, unsigned int size) {
     if (size >= 1 && size <= 0xFFFFu) {
         ppTcpHdr->Window = htons((u_short)size);
@@ -485,7 +474,7 @@ static void send_native_fragment(HANDLE w_filter, WINDIVERT_ADDRESS addr,
                         PWINDIVERT_TCPHDR ppTcpHdr,
                         unsigned int fragment_size, int step) {
     char packet_bak[MAX_PACKET_SIZE];
-    memcpy(&packet_bak, packet, packetLen);
+    memcpy(packet_bak, packet, packetLen);
     UINT orig_packetLen = packetLen;
 
     if (fragment_size >= packet_dataLen) {
@@ -542,7 +531,7 @@ static void send_native_fragment(HANDLE w_filter, WINDIVERT_ADDRESS addr,
         packetLen,
         NULL, &addr
     );
-    memcpy(packet, &packet_bak, orig_packetLen);
+    memcpy(packet, packet_bak, orig_packetLen);
     //printf("Sent native fragment of %d size (step%d)\n", packetLen, step);
 }
 
@@ -554,7 +543,6 @@ int main(int argc, char *argv[]) {
     } packet_type;
     int i, should_reinject, should_recalc_checksum = 0;
     int sni_ok = 0;
-    int openvpn_handshake = 0;
     int opt;
     int packet_v4, packet_v6;
     HANDLE w_filter = NULL;
@@ -581,7 +569,6 @@ int main(int argc, char *argv[]) {
         do_dns_verb = 0, do_tcp_verb = 0, do_blacklist = 0,
         do_allow_no_sni = 0,
         do_fake_packet = 0,
-        do_openvpn = 0,
         do_auto_ttl = 0,
         do_wrong_chksum = 0,
         do_wrong_seq = 0,
@@ -862,9 +849,6 @@ int main(int argc, char *argv[]) {
                     free(autottl_copy);
                 }
                 break;
-            case '#': // --openvpn
-                do_openvpn = 1;
-                break;
             case '%': // --wrong-chksum
                 do_fake_packet = 1;
                 do_wrong_chksum = 1;
@@ -940,7 +924,6 @@ int main(int argc, char *argv[]) {
                 "                          (like file transfers) in already established sessions.\n"
                 "                          May skip some huge HTTP requests from being processed.\n"
                 "                          Default (if set): --max-payload 1200.\n"
-                " --openvpn                Detect OpenVPN TCP and fragment/send fake packet.\n"
                 "\n");
                 puts("LEGACY modesets:\n"
                 " -1          -p -r -s -f 2 -k 2 -n -e 2 (most compatible mode)\n"
@@ -988,8 +971,7 @@ int main(int argc, char *argv[]) {
            "Fake requests, TTL: %s (fixed: %hu, auto: %hu-%hu-%hu, min distance: %hu)\n"  /* 16 */
            "Fake requests, wrong checksum: %d\n"    /* 17 */
            "Fake requests, wrong SEQ/ACK: %d\n"     /* 18 */
-           "Max payload size: %hu\n"                /* 19 */
-           "OpenVPN: %d\n",                         /* 20 */
+           "Max payload size: %hu\n",               /* 19 */
            do_passivedpi,                                         /* 1 */
            (do_fragment_http ? http_fragment_size : 0),           /* 2 */
            (do_fragment_http_persistent ? http_fragment_size : 0),/* 3 */
@@ -1010,8 +992,7 @@ int main(int argc, char *argv[]) {
                do_auto_ttl ? auto_ttl_max : 0, ttl_min_nhops,
            do_wrong_chksum, /* 17 */
            do_wrong_seq,    /* 18 */
-           max_payload_size, /* 19 */
-           do_openvpn        /* 20 */
+           max_payload_size /* 19 */
           );
 
     if (do_fragment_http && http_fragment_size > 2 && !do_native_frag) {
@@ -1138,7 +1119,7 @@ int main(int argc, char *argv[]) {
                  */
                 else if (addr.Outbound &&
                         ((do_fragment_https ? packet_dataLen == https_fragment_size : 0) ||
-                         packet_dataLen >= 16) &&
+                         packet_dataLen > 16) &&
                          ppTcpHdr->DstPort != htons(80) &&
                          (do_fake_packet || do_native_frag)
                         )
@@ -1148,9 +1129,7 @@ int main(int argc, char *argv[]) {
                      * But if the packet is more than 2 bytes, check ClientHello byte.
                     */
                     if ((packet_dataLen == 2 && memcmp(packet_data, "\x16\x03", 2) == 0) ||
-                        (packet_dataLen >= 3 && memcmp(packet_data, "\x16\x03\x01", 3) == 0) ||
-                        (do_openvpn && (openvpn_handshake = is_openvpn_handshake(packet_data, packet_dataLen)))
-                       )
+                        (packet_dataLen >= 3 && memcmp(packet_data, "\x16\x03\x01", 3) == 0))
                     {
                         if (do_blacklist) {
                             sni_ok = extract_sni(packet_data, packet_dataLen,
@@ -1161,7 +1140,6 @@ int main(int argc, char *argv[]) {
                               blackwhitelist_check_hostname(host_addr, host_len)
                              ) ||
                              (do_blacklist && !sni_ok && do_allow_no_sni) ||
-                             (do_openvpn && openvpn_handshake) ||
                              (!do_blacklist)
                            )
                         {
@@ -1169,7 +1147,7 @@ int main(int argc, char *argv[]) {
                             char lsni[HOST_MAXLEN + 1] = {0};
                             extract_sni(packet_data, packet_dataLen,
                                         &host_addr, &host_len);
-                            memcpy(&lsni, host_addr, host_len);
+                            memcpy(lsni, host_addr, host_len);
                             printf("Blocked HTTPS website SNI: %s\n", lsni);
 #endif
                             if (do_fake_packet) {
@@ -1204,7 +1182,7 @@ int main(int argc, char *argv[]) {
                         host_len = hdr_value_len;
 #ifdef DEBUG
                         char lhost[HOST_MAXLEN + 1] = {0};
-                        memcpy(&lhost, host_addr, host_len);
+                        memcpy(lhost, host_addr, host_len);
                         printf("Blocked HTTP website Host: %s\n", lhost);
 #endif
 
