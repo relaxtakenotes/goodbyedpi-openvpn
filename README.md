@@ -1,6 +1,10 @@
 GoodbyeDPI — Deep Packet Inspection circumvention utility, with openvpn packet detection merged from the respective branch to the main one
 =========================
 
+Why do a separate repository? - Because git is hard and I found it easier to just copy things myself.
+
+Why port this "dirty" version (as said by ValdikSS in his post on ntc.party)? - Because there's nothing else for now and Roskomnadzor is cracking down on VPN's as hard as ever due to you know what, also the artifacts got too old, also (x2) I kind of want the improvements alongside openvpn support.
+
 This software designed to bypass Deep Packet Inspection systems found in many Internet Service Providers which block access to certain websites.
 
 It handles DPI connected using optical splitter or port mirroring (**Passive DPI**) which do not block any data but just replying faster than requested destination, and **Active DPI** connected in sequence.
