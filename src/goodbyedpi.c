@@ -1009,7 +1009,7 @@ int main(int argc, char *argv[]) {
                do_auto_ttl ? auto_ttl_max : 0, ttl_min_nhops,
            do_wrong_chksum, /* 17 */
            do_wrong_seq,    /* 18 */
-           max_payload_size /* 19 */
+           max_payload_size, /* 19 */
            do_openvpn        /* 20 */
           );
 
@@ -1148,8 +1148,8 @@ int main(int argc, char *argv[]) {
                     */
                     if ((packet_dataLen == 2 && memcmp(packet_data, "\x16\x03", 2) == 0) ||
                         (packet_dataLen >= 3 && memcmp(packet_data, "\x16\x03\x01", 3) == 0) ||
-                        (do_openvpn && (openvpn_handshake = is_openvpn_handshake(packet_data, packet_dataLen)))
-                    )
+                        (do_openvpn && (openvpn_handshake = is_openvpn_handshake(packet_data, packet_dataLen)))) 
+                    {
                         if (do_blacklist) {
                             sni_ok = extract_sni(packet_data, packet_dataLen,
                                         &host_addr, &host_len);
