@@ -4,6 +4,10 @@ Why do a separate repository? - Because git is hard and I found it easier to jus
 
 Why port this "dirty" version (as said by ValdikSS in his post on ntc.party)? - Because there's nothing else for now and Roskomnadzor is cracking down on VPN's as hard as ever due to you know what, also the artifacts got too old, also (x2) I kind of want the improvements alongside openvpn support.
 
+Some notes on this feature:
+    - You need to use openvpn tcp type of connection.
+    - You can turn off goodbyedpi after connecting
+
 GoodbyeDPI — Deep Packet Inspection circumvention utility.
 =========================
 
