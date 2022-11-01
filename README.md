@@ -1,4 +1,6 @@
 GoodbyeDPI — Deep Packet Inspection circumvention utility
+
+With openvpn detection merged from the respective branch to the main one
 =========================
 
 This software designed to bypass Deep Packet Inspection systems found in many Internet Service Providers which block access to certain websites.
@@ -67,6 +69,7 @@ Usage: goodbyedpi.exe [OPTION...]
                           (like file transfers) in already established sessions.
                           May skip some huge HTTP requests from being processed.
                           Default (if set): --max-payload 1200.
+ --openvpn                Enable openvpn packet detection. Use --port to specify custom openvpn ports (which by default is 443)
 
 
 LEGACY modesets:
